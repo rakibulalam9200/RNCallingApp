@@ -7,4 +7,20 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Add any project specific keep options here:
+# WebRTC / LiveKit / InCallManager ProGuard & R8 Keep Rules for Release AAB/APK
+-keep class org.webrtc.** { *; }
+-dontwarn org.webrtc.**
+
+-keep class io.livekit.** { *; }
+-dontwarn io.livekit.**
+
+-keep class com.livekit.reactnative.** { *; }
+-dontwarn com.livekit.reactnative.**
+
+-keep class com.zmxv.RNSound.** { *; }
+-dontwarn com.zmxv.RNSound.**
+
+-keepattributes InnerClasses
+-keepattributes *Annotation*
+-keepattributes Signature
+
