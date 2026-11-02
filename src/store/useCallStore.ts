@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createStore } from './createStore';
 import { CallParticipant, CallStatus, AudioRoute } from '../types/call';
 
 interface CallState {
@@ -31,7 +31,7 @@ interface CallState {
   resetCall: () => void;
 }
 
-export const useCallStore = create<CallState>((set) => ({
+export const useCallStore = createStore<CallState>((set) => ({
   status: 'idle',
   roomName: '',
   userName: '',

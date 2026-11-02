@@ -97,12 +97,10 @@ How to integrate AI (e.g., **Gemini 2.0 Multimodal Live API** or OpenAI Realtime
 
 ## 3. Codebase Optimization & React Compiler
 
-### A. React 19 React Compiler
-This project runs on **React 19.3.0** and React Native 0.88.
-With React Compiler, manual `useMemo`, `useCallback`, and `React.memo` are **no longer needed**. The compiler analyzes your JavaScript code and memoizes intermediate values and callbacks automatically at build time.
+### A. React 19 React Compiler (Active in `babel.config.js`)
+This project runs on **React 19.3.0** with **React Native 0.88.1**.
+The official **`babel-plugin-react-compiler`** is configured in [`babel.config.js`](babel.config.js):
 
-#### How to Enable in `babel.config.js`:
-Once `babel-plugin-react-compiler` is installed, add it to plugins:
 ```javascript
 module.exports = {
   presets: ['module:@react-native/babel-preset'],
@@ -111,6 +109,10 @@ module.exports = {
   ],
 };
 ```
+
+#### Why Manual Memoization Was Removed:
+- All manual **`useCallback`**, **`useMemo`**, and **`React.memo`** boilerplate has been stripped from custom hooks (`useCallActions`, `useLiveKitRoom`) and components.
+- The React Compiler automatically determines memoization boundaries at build time, eliminating the risk of stale closures and forgotten dependency arrays while achieving optimal rendering performance during 10-user calls.
 
 ### B. WebRTC Mobile Performance Best Practices
 1. **Adaptive Stream & Dynacast**:

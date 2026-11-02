@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createStore } from './createStore';
 import { ChatMessage, FloatingReaction } from '../types/call';
 
 interface ChatState {
@@ -16,7 +16,7 @@ interface ChatState {
   clearMessages: () => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = createStore<ChatState>((set) => ({
   messages: [],
   floatingReactions: [],
   isChatOpen: false,

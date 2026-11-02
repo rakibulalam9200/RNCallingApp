@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createStore } from './createStore';
 import { AIAssistantStatus, LiveTranscript } from '../types/call';
 
 interface AIState {
@@ -16,7 +16,7 @@ interface AIState {
   clearSession: () => void;
 }
 
-export const useAIStore = create<AIState>((set) => ({
+export const useAIStore = createStore<AIState>((set) => ({
   status: 'idle',
   isEnabled: false,
   model: 'gemini-2.0-flash-live',

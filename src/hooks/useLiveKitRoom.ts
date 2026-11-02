@@ -1,9 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { CallParticipant, ChatMessage, CallStatus } from '../types/call';
 import { livekitService } from '../services/livekitService';
 import { useCallTimer } from './useCallTimer';
 import { LIVEKIT_CONFIG } from '../config/livekitConfig';
 
+/**
+ * useLiveKitRoom: Standalone Room Hook optimized by React Compiler
+ * Automatic memoization without manual useCallback boilerplate.
+ */
 export const useLiveKitRoom = () => {
   const [status, setStatus] = useState<CallStatus>('idle');
   const [roomName, setRoomName] = useState('');
@@ -21,103 +25,94 @@ export const useLiveKitRoom = () => {
 
   const { formattedDuration } = useCallTimer(status === 'connected');
 
-  const joinRoom = useCallback(
-    async (targetRoom: string, userName: string, audioOnly = false) => {
-      try {
-        setStatus('connecting');
-        setRoomName(targetRoom);
-        setMessages([]);
+  const joinRoom = async (targetRoom: string, userName: string, audioOnly = false) => {
+    try {
+      setStatus('connecting');
+      setRoomName(targetRoom);
+      setMessages([]);
 
-        // In production: fetch JWT token from your Render.com free server
-        // e.g. const res = await fetch(`${LIVEKIT_CONFIG.TOKEN_SERVER_URL}/token?room=${targetRoom}&identity=${userName}`);
-        // const { token } = await res.json();
-        const dummyToken = 'sandbox_token';
+      const dummyToken = 'sandbox_token';
 
-        await livekitService.connect(LIVEKIT_CONFIG.DEFAULT_WS_URL, dummyToken, {
-          onParticipantsChanged: (list) => {
-            setParticipants(list);
-          },
-          onActiveSpeakerChanged: (speakerId) => {
-            setActiveSpeakerId(speakerId);
-          },
-          onScreenShareChanged: (sharer, track) => {
-            setScreenSharer(sharer);
-            setScreenShareTrack(track);
-          },
-          onChatMessageReceived: (msg) => {
-            setMessages((prev) => [...prev, msg]);
-          },
-          onDisconnected: () => {
-            setStatus('idle');
-            setParticipants([]);
-          },
-        });
+      await livekitService.connect(LIVEKIT_CONFIG.DEFAULT_WS_URL, dummyToken, {
+        onParticipantsChanged: (list) => {
+          setParticipants(list);
+        },
+        onActiveSpeakerChanged: (speakerId) => {
+          setActiveSpeakerId(speakerId);
+        },
+        onScreenShareChanged: (sharer, track) => {
+          setScreenSharer(sharer);
+          setScreenShareTrack(track);
+        },
+        onChatMessageReceived: (msg) => {
+          setMessages((prev) => [...prev, msg]);
+        },
+        onDisconnected: () => {
+          setStatus('idle');
+          setParticipants([]);
+        },
+      });
 
-        if (audioOnly) {
-          setIsVideoEnabled(false);
-          await livekitService.setCameraEnabled(false);
-        }
-
-        setStatus('connected');
-      } catch (e) {
-        console.error('Failed to join room', e);
-        setStatus('connected'); // Fallback to simulated UI connected state for testing
+      if (audioOnly) {
+        setIsVideoEnabled(false);
+        await livekitService.setCameraEnabled(false);
       }
-    },
-    []
-  );
 
-  const leaveRoom = useCallback(() => {
+      setStatus('connected');
+    } catch (e) {
+      console.error('Failed to join room', e);
+      setStatus('connected'); // Fallback to simulated UI connected state for testing
+    }
+  };
+
+  const leaveRoom = () => {
     livekitService.disconnect();
     setStatus('idle');
     setParticipants([]);
     setScreenSharer(undefined);
     setScreenShareTrack(undefined);
     setIsScreenSharing(false);
-  }, []);
+  };
 
-  const toggleMic = useCallback(async () => {
+  const toggleMic = async () => {
     const nextState = !isMuted;
     setIsMuted(nextState);
     await livekitService.setMicrophoneEnabled(!nextState);
-  }, [isMuted]);
+  };
 
-  const toggleVideo = useCallback(async () => {
+  const toggleVideo = async () => {
     const nextState = !isVideoEnabled;
     setIsVideoEnabled(nextState);
     await livekitService.setCameraEnabled(nextState);
-  }, [isVideoEnabled]);
+  };
 
-  const toggleScreenShare = useCallback(async () => {
+  const toggleScreenShare = async () => {
     const nextState = !isScreenSharing;
     setIsScreenSharing(nextState);
     await livekitService.setScreenShareEnabled(nextState);
-  }, [isScreenSharing]);
+  };
 
-  const flipCamera = useCallback(async () => {
+  const flipCamera = async () => {
     await livekitService.flipCamera();
-  }, []);
+  };
 
-  const toggleSpeaker = useCallback(() => {
+  const toggleSpeaker = () => {
     const nextState = !isSpeakerOn;
     setIsSpeakerOn(nextState);
     livekitService.setSpeakerphoneOn(nextState);
-  }, [isSpeakerOn]);
+  };
 
-  const sendMessage = useCallback(
-    async (text: string) => {
-      const localMsg: ChatMessage = {
-        id: `${Date.now()}_local`,
-        sender: 'You',
-        message: text,
-        timestamp: Date.now(),
-        isLocal: true,
-      };
-      setMessages((prev) => [...prev, localMsg]);
-      await livekitService.sendChatMessage(text);
-    },
-    []
-  );
+  const sendMessage = async (text: string) => {
+    const localMsg: ChatMessage = {
+      id: `${Date.now()}_local`,
+      sender: 'You',
+      message: text,
+      timestamp: Date.now(),
+      isLocal: true,
+    };
+    setMessages((prev) => [...prev, localMsg]);
+    await livekitService.sendChatMessage(text);
+  };
 
   return {
     status,
@@ -142,4 +137,3 @@ export const useLiveKitRoom = () => {
     sendMessage,
   };
 };
-
