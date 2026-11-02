@@ -1,77 +1,80 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
-import { CallParticipant, ChatMessage } from '../../types/call';
+import { View, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Text } from 'react-native';
+import { useCallStore } from '../../store/useCallStore';
+import { useChatStore } from '../../store/useChatStore';
+import { useAIStore } from '../../store/useAIStore';
+import { useCallActions } from '../../hooks/useCallActions';
+import { useCallTimer } from '../../hooks/useCallTimer';
+
 import { StatusIndicator } from '../atoms/StatusIndicator';
+import { AIAssistantPill } from '../molecules/AIAssistantPill';
+import { ReactionPicker } from '../molecules/ReactionPicker';
 import { ControlBar } from '../molecules/ControlBar';
 import { VideoGrid } from '../organisms/VideoGrid';
 import { ScreenShareViewer } from '../organisms/ScreenShareViewer';
 import { ChatDrawer } from '../organisms/ChatDrawer';
+import { FloatingReactionsOverlay } from '../organisms/FloatingReactionsOverlay';
 
-interface CallRoomTemplateProps {
-  roomName: string;
-  duration: string;
-  participants: CallParticipant[];
-  activeSpeakerIdentity?: string;
-  screenSharer?: CallParticipant;
-  screenShareTrack?: any;
-  messages: ChatMessage[];
-  isMuted: boolean;
-  isVideoEnabled: boolean;
-  isScreenSharing: boolean;
-  isSpeakerOn: boolean;
-  onToggleMic: () => void;
-  onToggleVideo: () => void;
-  onToggleScreenShare: () => void;
-  onFlipCamera: () => void;
-  onToggleSpeaker: () => void;
-  onSendMessage: (text: string) => void;
-  onLeaveCall: () => void;
-}
+export const CallRoomTemplate: React.FC = () => {
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
 
-export const CallRoomTemplate: React.FC<CallRoomTemplateProps> = ({
-  roomName,
-  duration,
-  participants,
-  activeSpeakerIdentity,
-  screenSharer,
-  screenShareTrack,
-  messages,
-  isMuted,
-  isVideoEnabled,
-  isScreenSharing,
-  isSpeakerOn,
-  onToggleMic,
-  onToggleVideo,
-  onToggleScreenShare,
-  onFlipCamera,
-  onToggleSpeaker,
-  onSendMessage,
-  onLeaveCall,
-}) => {
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [lastReadMessageCount, setLastReadMessageCount] = useState(0);
+  // Zustand State Selectors (High-performance granular subscription)
+  const roomName = useCallStore((s) => s.roomName);
+  const status = useCallStore((s) => s.status);
+  const participants = useCallStore((s) => s.participants);
+  const activeSpeakerId = useCallStore((s) => s.activeSpeakerId);
+  const screenSharer = useCallStore((s) => s.screenSharer);
+  const screenShareTrack = useCallStore((s) => s.screenShareTrack);
+  const isMuted = useCallStore((s) => s.isMuted);
+  const isVideoEnabled = useCallStore((s) => s.isVideoEnabled);
+  const isScreenSharing = useCallStore((s) => s.isScreenSharing);
+  const isSpeakerOn = useCallStore((s) => s.isSpeakerOn);
 
-  const unreadCount = isChatOpen
-    ? 0
-    : Math.max(0, messages.length - lastReadMessageCount);
+  const messages = useChatStore((s) => s.messages);
+  const floatingReactions = useChatStore((s) => s.floatingReactions);
+  const isChatOpen = useChatStore((s) => s.isChatOpen);
+  const unreadCount = useChatStore((s) => s.unreadCount);
+  const setChatOpen = useChatStore((s) => s.setChatOpen);
+  const removeFloatingReaction = useChatStore((s) => s.removeFloatingReaction);
 
-  const handleToggleChat = () => {
-    if (!isChatOpen) {
-      setLastReadMessageCount(messages.length);
-    }
-    setIsChatOpen(!isChatOpen);
+  const aiStatus = useAIStore((s) => s.status);
+  const isAIEnabled = useAIStore((s) => s.isEnabled);
+  const toggleAIAssistant = useAIStore((s) => s.toggleAIAssistant);
+
+  // Actions
+  const {
+    toggleMic,
+    toggleVideo,
+    toggleScreenShare,
+    flipCamera,
+    toggleSpeaker,
+    sendMessage,
+    sendReaction,
+    leaveRoom,
+  } = useCallActions();
+
+  const { formattedDuration } = useCallTimer(status === 'connected');
+
+  const handleSelectReaction = (emoji: string) => {
+    sendReaction(emoji);
+    setShowReactionPicker(false);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       <View style={styles.container}>
-        {/* Top Header Bar */}
+        {/* Top Header Bar: Status Indicator + AI Assistant Pill */}
         <View style={styles.headerBar}>
           <StatusIndicator
             roomName={roomName}
-            duration={duration}
+            duration={formattedDuration}
             participantCount={participants.length}
+          />
+          <AIAssistantPill
+            status={aiStatus}
+            isEnabled={isAIEnabled}
+            onToggle={toggleAIAssistant}
           />
         </View>
 
@@ -85,10 +88,34 @@ export const CallRoomTemplate: React.FC<CallRoomTemplateProps> = ({
           ) : (
             <VideoGrid
               participants={participants}
-              activeSpeakerIdentity={activeSpeakerIdentity}
+              activeSpeakerIdentity={activeSpeakerId}
             />
           )}
         </View>
+
+        {/* Floating Reactions Overlay (Hearts, Claps, Thumbs up flying across screen) */}
+        <FloatingReactionsOverlay
+          reactions={floatingReactions}
+          onAnimationComplete={removeFloatingReaction}
+        />
+
+        {/* Reaction Picker Popover */}
+        {showReactionPicker && (
+          <View style={styles.reactionPickerContainer}>
+            <ReactionPicker onSelectEmoji={handleSelectReaction} />
+          </View>
+        )}
+
+        {/* Reaction Trigger Button (Quick emoji launcher) */}
+        <TouchableOpacity
+          style={styles.reactionTriggerBtn}
+          activeOpacity={0.8}
+          onPress={() => setShowReactionPicker(!showReactionPicker)}
+        >
+          <Text style={styles.reactionTriggerText}>
+            {showReactionPicker ? '✕' : '💖'}
+          </Text>
+        </TouchableOpacity>
 
         {/* Floating Control Action Bar */}
         <View style={styles.bottomControls}>
@@ -99,13 +126,13 @@ export const CallRoomTemplate: React.FC<CallRoomTemplateProps> = ({
             isChatOpen={isChatOpen}
             isSpeakerOn={isSpeakerOn}
             unreadChatCount={unreadCount}
-            onToggleMic={onToggleMic}
-            onToggleVideo={onToggleVideo}
-            onToggleScreenShare={onToggleScreenShare}
-            onFlipCamera={onFlipCamera}
-            onToggleSpeaker={onToggleSpeaker}
-            onToggleChat={handleToggleChat}
-            onHangUp={onLeaveCall}
+            onToggleMic={toggleMic}
+            onToggleVideo={toggleVideo}
+            onToggleScreenShare={toggleScreenShare}
+            onFlipCamera={flipCamera}
+            onToggleSpeaker={toggleSpeaker}
+            onToggleChat={() => setChatOpen(!isChatOpen)}
+            onHangUp={leaveRoom}
           />
         </View>
 
@@ -113,8 +140,8 @@ export const CallRoomTemplate: React.FC<CallRoomTemplateProps> = ({
         <ChatDrawer
           visible={isChatOpen}
           messages={messages}
-          onSendMessage={onSendMessage}
-          onClose={() => setIsChatOpen(false)}
+          onSendMessage={sendMessage}
+          onClose={() => setChatOpen(false)}
         />
       </View>
     </SafeAreaView>
@@ -132,14 +159,40 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerBar: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     zIndex: 10,
   },
   contentArea: {
     flex: 1,
     marginVertical: 4,
+  },
+  reactionPickerContainer: {
+    position: 'absolute',
+    bottom: 95,
+    alignSelf: 'center',
+    zIndex: 35,
+  },
+  reactionTriggerBtn: {
+    position: 'absolute',
+    right: 16,
+    bottom: 85,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    zIndex: 30,
+    elevation: 5,
+  },
+  reactionTriggerText: {
+    fontSize: 20,
   },
   bottomControls: {
     position: 'absolute',
@@ -149,4 +202,3 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
 });
-
