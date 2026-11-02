@@ -5,7 +5,10 @@ buildscript {
         compileSdkVersion = 37
         targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
-        kotlinVersion = "2.2.0"
+        // Kotlin 1.9.25 is the last stable 1.x release.
+        // LiveKit react-native android uses 'kotlin-android' (Groovy plugin DSL),
+        // which is NOT compatible with Kotlin 2.x compiler changes yet.
+        kotlinVersion = "1.9.25"
     }
     repositories {
         google()
