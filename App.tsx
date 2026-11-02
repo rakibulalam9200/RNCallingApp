@@ -4,7 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LobbyTemplate } from './src/components/templates/LobbyTemplate';
 import { CallRoomTemplate } from './src/components/templates/CallRoomTemplate';
 import { IncomingCallCard } from './src/components/molecules/IncomingCallCard';
-import { useLiveKitRoom } from './src/hooks/useLiveKitRoom';
+import { useCallStore } from './src/store/useCallStore';
+import { useCallActions } from './src/hooks/useCallActions';
 
 function App() {
   return (
@@ -16,30 +17,10 @@ function App() {
 }
 
 function MainAppNavigator() {
-  const {
-    status,
-    roomName,
-    duration,
-    participants,
-    activeSpeakerId,
-    screenSharer,
-    screenShareTrack,
-    messages,
-    isMuted,
-    isVideoEnabled,
-    isScreenSharing,
-    isSpeakerOn,
-    joinRoom,
-    leaveRoom,
-    toggleMic,
-    toggleVideo,
-    toggleScreenShare,
-    flipCamera,
-    toggleSpeaker,
-    sendMessage,
-  } = useLiveKitRoom();
+  const status = useCallStore((s) => s.status);
+  const { joinRoom } = useCallActions();
 
-  // Simulated incoming 1-on-1 call state (ready for WebSocket / Push event)
+  // Simulated incoming 1-on-1 call modal state
   const [incomingCall, setIncomingCall] = useState<{
     visible: boolean;
     callerName: string;
@@ -70,26 +51,7 @@ function MainAppNavigator() {
           isLoading={status === 'connecting'}
         />
       ) : (
-        <CallRoomTemplate
-          roomName={roomName}
-          duration={duration}
-          participants={participants}
-          activeSpeakerIdentity={activeSpeakerId}
-          screenSharer={screenSharer}
-          screenShareTrack={screenShareTrack}
-          messages={messages}
-          isMuted={isMuted}
-          isVideoEnabled={isVideoEnabled}
-          isScreenSharing={isScreenSharing}
-          isSpeakerOn={isSpeakerOn}
-          onToggleMic={toggleMic}
-          onToggleVideo={toggleVideo}
-          onToggleScreenShare={toggleScreenShare}
-          onFlipCamera={flipCamera}
-          onToggleSpeaker={toggleSpeaker}
-          onSendMessage={sendMessage}
-          onLeaveCall={leaveRoom}
-        />
+        <CallRoomTemplate />
       )}
 
       {/* Incoming Call Micro-Modal */}
