@@ -18,11 +18,11 @@ const STORAGE_KEYS = {
 };
 
 export const LIVEKIT_CONFIG = {
-  // Replace with your free LiveKit Cloud URL: wss://<your-project>.livekit.cloud
+  // LiveKit Cloud WebSocket URL
   DEFAULT_WS_URL: 'wss://rncalling-prod-1wkhfsvi.livekit.cloud',
 
-  // Replace with your Render.com / Railway / Local token server URL: https://<your-app>.onrender.com
-  TOKEN_SERVER_URL: 'https://demo-calling-token-server.onrender.com',
+  // Deployed Render.com Token & Signaling Server URL
+  TOKEN_SERVER_URL: 'https://rncallingapp-token-server.onrender.com',
 
   // Optional direct JWT token generated from cloud.livekit.io dashboard for quick MVP testing without a server
   STATIC_DEV_TOKEN: '',
@@ -70,8 +70,14 @@ export const loadRuntimeConfig = async (): Promise<RuntimeServerConfig> => {
       AsyncStorage.getItem(STORAGE_KEYS.STATIC_TOKEN),
     ]);
     return {
-      wsUrl: wsUrl || LIVEKIT_CONFIG.DEFAULT_WS_URL,
-      tokenServerUrl: tokenServerUrl || LIVEKIT_CONFIG.TOKEN_SERVER_URL,
+      wsUrl:
+        wsUrl && !wsUrl.includes('demo-calling-app')
+          ? wsUrl
+          : LIVEKIT_CONFIG.DEFAULT_WS_URL,
+      tokenServerUrl:
+        tokenServerUrl && !tokenServerUrl.includes('demo-calling-token-server')
+          ? tokenServerUrl
+          : LIVEKIT_CONFIG.TOKEN_SERVER_URL,
       staticToken: staticToken || LIVEKIT_CONFIG.STATIC_DEV_TOKEN,
     };
   } catch {

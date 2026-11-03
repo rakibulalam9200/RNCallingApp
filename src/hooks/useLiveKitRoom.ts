@@ -31,9 +31,29 @@ export const useLiveKitRoom = () => {
       setRoomName(targetRoom);
       setMessages([]);
 
-      const dummyToken = 'sandbox_token';
+      let token = 'sandbox_token';
+      let wsUrl = LIVEKIT_CONFIG.DEFAULT_WS_URL;
 
-      await livekitService.connect(LIVEKIT_CONFIG.DEFAULT_WS_URL, dummyToken, {
+      if (LIVEKIT_CONFIG.TOKEN_SERVER_URL) {
+        try {
+          const res = await fetch(
+            `${LIVEKIT_CONFIG.TOKEN_SERVER_URL.replace(/\/$/, '')}/token?room=${encodeURIComponent(
+              targetRoom
+            )}&identity=${encodeURIComponent(userName)}&name=${encodeURIComponent(
+              userName
+            )}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.token) token = data.token;
+            if (data.wsUrl) wsUrl = data.wsUrl;
+          }
+        } catch (err) {
+          console.warn('[useLiveKitRoom] Token fetch failed:', err);
+        }
+      }
+
+      await livekitService.connect(wsUrl, token, {
         onParticipantsChanged: (list) => {
           setParticipants(list);
         },
