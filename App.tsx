@@ -37,7 +37,7 @@ function MainAppNavigator() {
   const handleAcceptIncomingCall = () => {
     const { roomName: targetRoom } = incomingCall;
     setIncomingCall((prev) => ({ ...prev, visible: false }));
-    joinRoom(targetRoom, 'You');
+    joinRoom(targetRoom, 'You', false, 'direct');
   };
 
   const handleDeclineIncomingCall = () => {
@@ -48,8 +48,8 @@ function MainAppNavigator() {
     <View style={styles.container}>
       {status === 'idle' || status === 'connecting' ? (
         <LobbyTemplate
-          onJoinRoom={(room, user, audioOnly) => {
-            joinRoom(room, user, audioOnly);
+          onJoinRoom={(room, user, audioOnly, callType) => {
+            joinRoom(room, user, audioOnly, callType);
           }}
           isLoading={status === 'connecting'}
         />

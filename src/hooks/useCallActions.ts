@@ -1,9 +1,33 @@
+import { Platform, PermissionsAndroid } from 'react-native';
 import { useCallStore } from '../store/useCallStore';
 import { useChatStore } from '../store/useChatStore';
 import { useAIStore } from '../store/useAIStore';
 import { livekitService } from '../services/livekitService';
 import { LIVEKIT_CONFIG } from '../config/livekitConfig';
-import { ChatMessage } from '../types/call';
+import { ChatMessage, CallType } from '../types/call';
+
+export const requestMediaPermissions = async () => {
+  if (Platform.OS !== 'android') return true;
+
+  try {
+    const granted = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    ]);
+
+    const cameraGranted =
+      granted[PermissionsAndroid.PERMISSIONS.CAMERA] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+    const audioGranted =
+      granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+
+    return cameraGranted && audioGranted;
+  } catch (err) {
+    console.warn('[Permissions] Media permission request error', err);
+    return false;
+  }
+};
 
 /**
  * useCallActions: Action dispatchers optimized by React Compiler
@@ -26,6 +50,7 @@ export const useCallActions = () => {
     isScreenSharing,
     isSpeakerOn,
     userName,
+    callType,
   } = useCallStore();
 
   const {
@@ -41,52 +66,68 @@ export const useCallActions = () => {
   } = useAIStore();
 
   // Join Room
-  const joinRoom = async (targetRoom: string, user: string, audioOnly = false) => {
+  const joinRoom = async (
+    targetRoom: string,
+    user: string,
+    audioOnly = false,
+    type: CallType = 'group'
+  ) => {
     try {
       setStatus('connecting');
-      setRoomDetails(targetRoom, user);
+      setRoomDetails(targetRoom, user, type);
       clearMessages();
+
+      // Request Android Camera & Mic permissions before connecting
+      await requestMediaPermissions();
 
       const dummyToken = 'sandbox_token';
 
-      await livekitService.connect(LIVEKIT_CONFIG.DEFAULT_WS_URL, dummyToken, {
-        onParticipantsChanged: (list) => {
-          setParticipants(list);
+      await livekitService.connect(
+        LIVEKIT_CONFIG.DEFAULT_WS_URL,
+        dummyToken,
+        {
+          onParticipantsChanged: (list) => {
+            setParticipants(list);
+          },
+          onActiveSpeakerChanged: (speakerId) => {
+            setActiveSpeakerId(speakerId);
+          },
+          onScreenShareChanged: (sharer, track) => {
+            setScreenSharer(sharer, track);
+          },
+          onChatMessageReceived: (msg) => {
+            // Check if it is a special packet (Reaction or AI)
+            if (msg.message.startsWith('__REACTION__:')) {
+              const emoji = msg.message.replace('__REACTION__:', '');
+              triggerFloatingReaction(emoji, msg.sender);
+              return;
+            }
+            if (msg.message.startsWith('__AI_TRANSCRIPT__:')) {
+              const text = msg.message.replace('__AI_TRANSCRIPT__:', '');
+              appendTranscript({
+                id: `${Date.now()}`,
+                sender: msg.sender,
+                text,
+                timestamp: Date.now(),
+                isAI: true,
+              });
+              return;
+            }
+            addMessage(msg);
+          },
+          onDisconnected: () => {
+            resetCall();
+          },
         },
-        onActiveSpeakerChanged: (speakerId) => {
-          setActiveSpeakerId(speakerId);
-        },
-        onScreenShareChanged: (sharer, track) => {
-          setScreenSharer(sharer, track);
-        },
-        onChatMessageReceived: (msg) => {
-          // Check if it is a special packet (Reaction or AI)
-          if (msg.message.startsWith('__REACTION__:')) {
-            const emoji = msg.message.replace('__REACTION__:', '');
-            triggerFloatingReaction(emoji, msg.sender);
-            return;
-          }
-          if (msg.message.startsWith('__AI_TRANSCRIPT__:')) {
-            const text = msg.message.replace('__AI_TRANSCRIPT__:', '');
-            appendTranscript({
-              id: `${Date.now()}`,
-              sender: msg.sender,
-              text,
-              timestamp: Date.now(),
-              isAI: true,
-            });
-            return;
-          }
-          addMessage(msg);
-        },
-        onDisconnected: () => {
-          resetCall();
-        },
-      });
+        type
+      );
 
       if (audioOnly) {
         setVideoEnabled(false);
         await livekitService.setCameraEnabled(false);
+      } else {
+        setVideoEnabled(true);
+        await livekitService.setCameraEnabled(true);
       }
 
       setStatus('connected');

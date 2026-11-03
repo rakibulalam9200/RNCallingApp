@@ -17,6 +17,7 @@ interface LobbyTemplateProps {
     roomName: string,
     userName: string,
     isAudioOnly: boolean,
+    callType: 'group' | 'direct',
   ) => void;
   isLoading?: boolean;
 }
@@ -33,7 +34,7 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
 
   const handleJoin = () => {
     if (!roomName.trim() || !userName.trim()) return;
-    onJoinRoom(roomName.trim(), userName.trim(), isAudioOnly);
+    onJoinRoom(roomName.trim(), userName.trim(), isAudioOnly, activeTab);
   };
 
   return (

@@ -6,6 +6,8 @@ export type CallStatus =
   | 'disconnected'
   | 'error';
 
+export type CallType = 'group' | 'direct';
+
 export type AudioRoute = 'speaker' | 'earpiece' | 'bluetooth';
 
 export interface CallParticipant {

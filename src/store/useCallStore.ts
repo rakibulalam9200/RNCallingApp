@@ -1,8 +1,9 @@
 import { createStore } from './createStore';
-import { CallParticipant, CallStatus, AudioRoute } from '../types/call';
+import { CallParticipant, CallStatus, AudioRoute, CallType } from '../types/call';
 
 interface CallState {
   status: CallStatus;
+  callType: CallType;
   roomName: string;
   userName: string;
   participants: CallParticipant[];
@@ -19,7 +20,8 @@ interface CallState {
 
   // Actions
   setStatus: (status: CallStatus) => void;
-  setRoomDetails: (roomName: string, userName: string) => void;
+  setCallType: (callType: CallType) => void;
+  setRoomDetails: (roomName: string, userName: string, callType?: CallType) => void;
   setParticipants: (participants: CallParticipant[]) => void;
   setActiveSpeakerId: (id?: string) => void;
   setScreenSharer: (sharer?: CallParticipant, track?: any) => void;
@@ -33,6 +35,7 @@ interface CallState {
 
 export const useCallStore = createStore<CallState>((set) => ({
   status: 'idle',
+  callType: 'group',
   roomName: '',
   userName: '',
   participants: [],
@@ -47,7 +50,9 @@ export const useCallStore = createStore<CallState>((set) => ({
   audioRoute: 'speaker',
 
   setStatus: (status) => set({ status }),
-  setRoomDetails: (roomName, userName) => set({ roomName, userName }),
+  setCallType: (callType) => set({ callType }),
+  setRoomDetails: (roomName, userName, callType = 'group') =>
+    set({ roomName, userName, callType }),
   setParticipants: (participants) => set({ participants }),
   setActiveSpeakerId: (activeSpeakerId) => set({ activeSpeakerId }),
   setScreenSharer: (screenSharer, screenShareTrack) =>

@@ -5,27 +5,45 @@ import { MicroAvatar } from '../atoms/MicroAvatar';
 import { MicroTag } from '../atoms/MicroTag';
 import { MicroBadge } from '../atoms/MicroBadge';
 
-// Try loading native VideoTrack component safely
-let VideoTrackView: any = null;
+// Load native WebRTC view component
+let RTCViewComponent: any = null;
 try {
-  const LiveKit = require('@livekit/react-native');
-  VideoTrackView = LiveKit.VideoTrack;
+  const WebRTC = require('@livekit/react-native-webrtc');
+  RTCViewComponent = WebRTC.RTCView;
 } catch (e) {
-  // Graceful fallback during development/mocking
+  // Graceful fallback
 }
 
 interface ParticipantTileProps {
   participant: CallParticipant;
   style?: ViewStyle;
   isSpotlight?: boolean;
+  zOrder?: number;
 }
+
+const getStreamURL = (videoTrack: any): string | null => {
+  if (!videoTrack) return null;
+  if (typeof videoTrack === 'string') return videoTrack;
+  if (videoTrack.mediaStream && typeof videoTrack.mediaStream.toURL === 'function') {
+    return videoTrack.mediaStream.toURL();
+  }
+  if (typeof videoTrack.toURL === 'function') {
+    return videoTrack.toURL();
+  }
+  if (videoTrack.track?.mediaStream && typeof videoTrack.track.mediaStream.toURL === 'function') {
+    return videoTrack.track.mediaStream.toURL();
+  }
+  return null;
+};
 
 export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   participant,
   style,
   isSpotlight = false,
+  zOrder,
 }) => {
-  const hasVideo = participant.isVideoEnabled && participant.videoTrack;
+  const streamURL = participant.isVideoEnabled ? getStreamURL(participant.videoTrack) : null;
+  const hasVideo = Boolean(participant.isVideoEnabled && streamURL);
 
   return (
     <View
@@ -36,12 +54,13 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
       ]}
     >
       {/* Video Stream or Avatar Fallback */}
-      {hasVideo && VideoTrackView ? (
-        <VideoTrackView
-          trackRef={participant.videoTrack}
+      {hasVideo && RTCViewComponent ? (
+        <RTCViewComponent
+          streamURL={streamURL}
           style={styles.videoTrack}
           mirror={participant.isLocal}
           objectFit="cover"
+          zOrder={zOrder ?? (participant.isLocal ? 1 : 0)}
         />
       ) : (
         <View style={styles.avatarContainer}>

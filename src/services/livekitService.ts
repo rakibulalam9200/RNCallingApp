@@ -1,4 +1,4 @@
-import { CallParticipant, ChatMessage } from '../types/call';
+import { CallParticipant, ChatMessage, CallType } from '../types/call';
 import { LIVEKIT_CONFIG } from '../config/livekitConfig';
 
 // Safely import native dependencies
@@ -29,7 +29,8 @@ export class LiveKitService {
       onScreenShareChanged: (sharer?: CallParticipant, track?: any) => void;
       onChatMessageReceived: (msg: ChatMessage) => void;
       onDisconnected: () => void;
-    }
+    },
+    callType: CallType = 'group'
   ) {
     if (InCallManager) {
       InCallManager.start({ media: 'video' });
@@ -38,7 +39,7 @@ export class LiveKitService {
 
     if (!LiveKitClient || !LiveKitClient.Room) {
       console.warn('[LiveKitService] Running in UI simulation mode.');
-      return this.simulateConnection(callbacks);
+      return this.simulateConnection(callbacks, callType);
     }
 
     try {
@@ -61,6 +62,11 @@ export class LiveKitService {
         // Local participant
         if (this.room.localParticipant) {
           const lp = this.room.localParticipant;
+          const localVideoPub =
+            lp.getTrackPublication(LiveKitClient.Track.Source.Camera) ||
+            lp.videoTrackPublications?.values()?.next()?.value;
+          const localTrack = localVideoPub?.track || localVideoPub?.videoTrack;
+
           list.push({
             identity: lp.identity,
             name: lp.name || lp.identity,
@@ -69,7 +75,7 @@ export class LiveKitService {
             isMuted: !lp.isMicrophoneEnabled,
             isVideoEnabled: lp.isCameraEnabled,
             isScreenSharing: lp.isScreenShareEnabled,
-            videoTrack: lp.videoTrackPublications?.values()?.next()?.value?.track,
+            videoTrack: localTrack,
             screenShareTrack: lp.getTrackPublication(LiveKitClient.Track.Source.ScreenShare)?.track,
           });
         }
@@ -77,7 +83,9 @@ export class LiveKitService {
         // Remote participants
         if (this.room.remoteParticipants) {
           this.room.remoteParticipants.forEach((rp: any) => {
-            const videoPub = Array.from(rp.videoTrackPublications.values())[0] as any;
+            const videoPub =
+              rp.getTrackPublication(LiveKitClient.Track.Source.Camera) ||
+              Array.from(rp.videoTrackPublications.values())[0] as any;
             const screenPub = rp.getTrackPublication(LiveKitClient.Track.Source.ScreenShare);
 
             list.push({
@@ -88,7 +96,7 @@ export class LiveKitService {
               isMuted: !rp.isMicrophoneEnabled,
               isVideoEnabled: rp.isCameraEnabled,
               isScreenSharing: rp.isScreenShareEnabled,
-              videoTrack: videoPub?.track,
+              videoTrack: videoPub?.track || videoPub?.videoTrack,
               screenShareTrack: screenPub?.track,
             });
           });
@@ -209,39 +217,63 @@ export class LiveKitService {
   }
 
   // Simulated fallback for immediate UI testing before credentials are added
-  private simulateConnection(callbacks: any) {
-    const mockList: CallParticipant[] = [
-      {
-        identity: 'local_user',
-        name: 'You (Host)',
-        isLocal: true,
-        isSpeaking: false,
-        isMuted: false,
-        isVideoEnabled: true,
-        isScreenSharing: false,
-      },
-      {
-        identity: 'user_alex',
-        name: 'Alex (4G Mobile)',
-        isLocal: false,
-        isSpeaking: true,
-        isMuted: false,
-        isVideoEnabled: false,
-        isScreenSharing: false,
-      },
-      {
-        identity: 'user_sarah',
-        name: 'Sarah (Wi-Fi)',
-        isLocal: false,
-        isSpeaking: false,
-        isMuted: false,
-        isVideoEnabled: false,
-        isScreenSharing: false,
-      },
-    ];
+  private simulateConnection(callbacks: any, callType: CallType = 'group') {
+    const mockList: CallParticipant[] =
+      callType === 'direct'
+        ? [
+            {
+              identity: 'local_user',
+              name: 'You (Host)',
+              isLocal: true,
+              isSpeaking: false,
+              isMuted: false,
+              isVideoEnabled: true,
+              isScreenSharing: false,
+            },
+            {
+              identity: 'user_direct_peer',
+              name: 'Sarah Jenkins (Direct)',
+              isLocal: false,
+              isSpeaking: true,
+              isMuted: false,
+              isVideoEnabled: false,
+              isScreenSharing: false,
+            },
+          ]
+        : [
+            {
+              identity: 'local_user',
+              name: 'You (Host)',
+              isLocal: true,
+              isSpeaking: false,
+              isMuted: false,
+              isVideoEnabled: true,
+              isScreenSharing: false,
+            },
+            {
+              identity: 'user_alex',
+              name: 'Alex (4G Mobile)',
+              isLocal: false,
+              isSpeaking: true,
+              isMuted: false,
+              isVideoEnabled: false,
+              isScreenSharing: false,
+            },
+            {
+              identity: 'user_sarah',
+              name: 'Sarah (Wi-Fi)',
+              isLocal: false,
+              isSpeaking: false,
+              isMuted: false,
+              isVideoEnabled: false,
+              isScreenSharing: false,
+            },
+          ];
 
     callbacks.onParticipantsChanged(mockList);
-    callbacks.onActiveSpeakerChanged('user_alex');
+    callbacks.onActiveSpeakerChanged(
+      callType === 'direct' ? 'user_direct_peer' : 'user_alex'
+    );
   }
 }
 

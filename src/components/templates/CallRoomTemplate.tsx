@@ -31,6 +31,7 @@ export const CallRoomTemplate: React.FC = () => {
   const isVideoEnabled = useCallStore((s) => s.isVideoEnabled);
   const isScreenSharing = useCallStore((s) => s.isScreenSharing);
   const isSpeakerOn = useCallStore((s) => s.isSpeakerOn);
+  const callType = useCallStore((s) => s.callType);
 
   const messages = useChatStore((s) => s.messages);
   const floatingReactions = useChatStore((s) => s.floatingReactions);
@@ -77,11 +78,13 @@ export const CallRoomTemplate: React.FC = () => {
           duration={formattedDuration}
           participantCount={participants.length}
         />
-        <AIAssistantPill
-          status={aiStatus}
-          isEnabled={isAIEnabled}
-          onToggle={toggleAIAssistant}
-        />
+        {callType === 'group' && (
+          <AIAssistantPill
+            status={aiStatus}
+            isEnabled={isAIEnabled}
+            onToggle={toggleAIAssistant}
+          />
+        )}
       </View>
 
       {/* Center Calling Area: Screen Share or Adaptive Video Grid */}
@@ -100,6 +103,7 @@ export const CallRoomTemplate: React.FC = () => {
           <VideoGrid
             participants={participants}
             activeSpeakerIdentity={activeSpeakerId}
+            callType={callType}
           />
         )}
       </View>
