@@ -37,8 +37,15 @@ export class LiveKitService {
       InCallManager.setSpeakerphoneOn(true);
     }
 
-    if (!LiveKitClient || !LiveKitClient.Room) {
-      console.warn('[LiveKitService] Running in UI simulation mode.');
+    if (
+      !LiveKitClient ||
+      !LiveKitClient.Room ||
+      token === 'sandbox_token' ||
+      wsUrl.includes('demo-calling-app')
+    ) {
+      console.warn(
+        '[LiveKitService] Running in UI simulation mode (live server credentials not configured).'
+      );
       return this.simulateConnection(callbacks, callType);
     }
 

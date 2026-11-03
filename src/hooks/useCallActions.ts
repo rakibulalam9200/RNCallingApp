@@ -80,11 +80,33 @@ export const useCallActions = () => {
       // Request Android Camera & Mic permissions before connecting
       await requestMediaPermissions();
 
-      const dummyToken = 'sandbox_token';
+      let token = 'sandbox_token';
+
+      // Attempt to fetch real authorized LiveKit JWT token if token server configured
+      if (
+        LIVEKIT_CONFIG.TOKEN_SERVER_URL &&
+        !LIVEKIT_CONFIG.TOKEN_SERVER_URL.includes('demo-calling-token-server')
+      ) {
+        try {
+          const res = await fetch(
+            `${LIVEKIT_CONFIG.TOKEN_SERVER_URL}/token?room=${encodeURIComponent(
+              targetRoom
+            )}&identity=${encodeURIComponent(user)}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.token) {
+              token = data.token;
+            }
+          }
+        } catch (fetchErr) {
+          console.warn('[LiveKit] Token server fetch failed:', fetchErr);
+        }
+      }
 
       await livekitService.connect(
         LIVEKIT_CONFIG.DEFAULT_WS_URL,
-        dummyToken,
+        token,
         {
           onParticipantsChanged: (list) => {
             setParticipants(list);
