@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   videoTrack: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#0F172A',
   },
   avatarContainer: {

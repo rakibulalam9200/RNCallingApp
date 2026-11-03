@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatMessage } from '../../types/call';
 import { ChatMessageBubble } from '../molecules/ChatMessageBubble';
 
@@ -25,6 +26,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   onSendMessage,
   onClose,
 }) => {
+  const insets = useSafeAreaInsets();
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
@@ -47,7 +49,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.overlay}
+      style={[
+        styles.overlay,
+        { top: Math.max(insets.top + 20, 60) },
+      ]}
     >
       <View style={styles.container}>
         {/* Header */}
@@ -78,7 +83,12 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
         )}
 
         {/* Input Bar */}
-        <View style={styles.inputBar}>
+        <View
+          style={[
+            styles.inputBar,
+            { paddingBottom: Math.max(insets.bottom, 10) },
+          ]}
+        >
           <TextInput
             style={styles.textInput}
             placeholder="Type a message..."

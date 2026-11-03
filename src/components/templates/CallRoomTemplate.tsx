@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, StatusBar, TouchableOpacity, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCallStore } from '../../store/useCallStore';
 import { useChatStore } from '../../store/useChatStore';
 import { useAIStore } from '../../store/useAIStore';
@@ -17,6 +18,7 @@ import { FloatingReactionsOverlay } from '../organisms/FloatingReactionsOverlay'
 
 export const CallRoomTemplate: React.FC = () => {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const insets = useSafeAreaInsets();
 
   // Zustand State Selectors (High-performance granular subscription)
   const roomName = useCallStore((s) => s.roomName);
@@ -61,98 +63,115 @@ export const CallRoomTemplate: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-      <View style={styles.container}>
-        {/* Top Header Bar: Status Indicator + AI Assistant Pill */}
-        <View style={styles.headerBar}>
-          <StatusIndicator
-            roomName={roomName}
-            duration={formattedDuration}
-            participantCount={participants.length}
-          />
-          <AIAssistantPill
-            status={aiStatus}
-            isEnabled={isAIEnabled}
-            onToggle={toggleAIAssistant}
-          />
-        </View>
-
-        {/* Center Calling Area: Screen Share or Adaptive Video Grid */}
-        <View style={styles.contentArea}>
-          {screenSharer ? (
-            <ScreenShareViewer
-              sharer={screenSharer}
-              track={screenShareTrack}
-            />
-          ) : (
-            <VideoGrid
-              participants={participants}
-              activeSpeakerIdentity={activeSpeakerId}
-            />
-          )}
-        </View>
-
-        {/* Floating Reactions Overlay (Hearts, Claps, Thumbs up flying across screen) */}
-        <FloatingReactionsOverlay
-          reactions={floatingReactions}
-          onAnimationComplete={removeFloatingReaction}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      {/* Top Header Bar: Status Indicator + AI Assistant Pill */}
+      <View
+        style={[
+          styles.headerBar,
+          { paddingTop: Math.max(insets.top, 12) },
+        ]}
+      >
+        <StatusIndicator
+          roomName={roomName}
+          duration={formattedDuration}
+          participantCount={participants.length}
         />
-
-        {/* Reaction Picker Popover */}
-        {showReactionPicker && (
-          <View style={styles.reactionPickerContainer}>
-            <ReactionPicker onSelectEmoji={handleSelectReaction} />
-          </View>
-        )}
-
-        {/* Reaction Trigger Button (Quick emoji launcher) */}
-        <TouchableOpacity
-          style={styles.reactionTriggerBtn}
-          activeOpacity={0.8}
-          onPress={() => setShowReactionPicker(!showReactionPicker)}
-        >
-          <Text style={styles.reactionTriggerText}>
-            {showReactionPicker ? '✕' : '💖'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Floating Control Action Bar */}
-        <View style={styles.bottomControls}>
-          <ControlBar
-            isMuted={isMuted}
-            isVideoEnabled={isVideoEnabled}
-            isScreenSharing={isScreenSharing}
-            isChatOpen={isChatOpen}
-            isSpeakerOn={isSpeakerOn}
-            unreadChatCount={unreadCount}
-            onToggleMic={toggleMic}
-            onToggleVideo={toggleVideo}
-            onToggleScreenShare={toggleScreenShare}
-            onFlipCamera={flipCamera}
-            onToggleSpeaker={toggleSpeaker}
-            onToggleChat={() => setChatOpen(!isChatOpen)}
-            onHangUp={leaveRoom}
-          />
-        </View>
-
-        {/* In-Call Real-Time Chat Drawer */}
-        <ChatDrawer
-          visible={isChatOpen}
-          messages={messages}
-          onSendMessage={sendMessage}
-          onClose={() => setChatOpen(false)}
+        <AIAssistantPill
+          status={aiStatus}
+          isEnabled={isAIEnabled}
+          onToggle={toggleAIAssistant}
         />
       </View>
-    </SafeAreaView>
+
+      {/* Center Calling Area: Screen Share or Adaptive Video Grid */}
+      <View
+        style={[
+          styles.contentArea,
+          { marginBottom: 84 + insets.bottom },
+        ]}
+      >
+        {screenSharer ? (
+          <ScreenShareViewer
+            sharer={screenSharer}
+            track={screenShareTrack}
+          />
+        ) : (
+          <VideoGrid
+            participants={participants}
+            activeSpeakerIdentity={activeSpeakerId}
+          />
+        )}
+      </View>
+
+      {/* Floating Reactions Overlay (Hearts, Claps, Thumbs up flying across screen) */}
+      <FloatingReactionsOverlay
+        reactions={floatingReactions}
+        onAnimationComplete={removeFloatingReaction}
+      />
+
+      {/* Reaction Picker Popover */}
+      {showReactionPicker && (
+        <View
+          style={[
+            styles.reactionPickerContainer,
+            { bottom: 95 + insets.bottom },
+          ]}
+        >
+          <ReactionPicker onSelectEmoji={handleSelectReaction} />
+        </View>
+      )}
+
+      {/* Reaction Trigger Button (Quick emoji launcher) */}
+      <TouchableOpacity
+        style={[
+          styles.reactionTriggerBtn,
+          { bottom: 85 + insets.bottom },
+        ]}
+        activeOpacity={0.8}
+        onPress={() => setShowReactionPicker(!showReactionPicker)}
+      >
+        <Text style={styles.reactionTriggerText}>
+          {showReactionPicker ? '✕' : '💖'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Floating Control Action Bar */}
+      <View
+        style={[
+          styles.bottomControls,
+          { bottom: insets.bottom },
+        ]}
+      >
+        <ControlBar
+          isMuted={isMuted}
+          isVideoEnabled={isVideoEnabled}
+          isScreenSharing={isScreenSharing}
+          isChatOpen={isChatOpen}
+          isSpeakerOn={isSpeakerOn}
+          unreadChatCount={unreadCount}
+          onToggleMic={toggleMic}
+          onToggleVideo={toggleVideo}
+          onToggleScreenShare={toggleScreenShare}
+          onFlipCamera={flipCamera}
+          onToggleSpeaker={toggleSpeaker}
+          onToggleChat={() => setChatOpen(!isChatOpen)}
+          onHangUp={leaveRoom}
+        />
+      </View>
+
+      {/* In-Call Real-Time Chat Drawer */}
+      <ChatDrawer
+        visible={isChatOpen}
+        messages={messages}
+        onSendMessage={sendMessage}
+        onClose={() => setChatOpen(false)}
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-  },
   container: {
     flex: 1,
     backgroundColor: '#0F172A',

@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   screenTrack: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   placeholder: {
     flex: 1,

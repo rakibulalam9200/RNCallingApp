@@ -79,7 +79,7 @@ export const FloatingReactionsOverlay: React.FC<FloatingReactionsOverlayProps> =
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 50,
   },
   emojiContainer: {

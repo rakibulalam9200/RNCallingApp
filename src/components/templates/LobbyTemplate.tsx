@@ -8,11 +8,16 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MicroButton } from '../atoms/MicroButton';
 import { LIVEKIT_CONFIG } from '../../config/livekitConfig';
 
 interface LobbyTemplateProps {
-  onJoinRoom: (roomName: string, userName: string, isAudioOnly: boolean) => void;
+  onJoinRoom: (
+    roomName: string,
+    userName: string,
+    isAudioOnly: boolean,
+  ) => void;
   isLoading?: boolean;
 }
 
@@ -20,6 +25,7 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
   onJoinRoom,
   isLoading = false,
 }) => {
+  const insets = useSafeAreaInsets();
   const [roomName, setRoomName] = useState(LIVEKIT_CONFIG.DEFAULT_ROOM_NAME);
   const [userName, setUserName] = useState(LIVEKIT_CONFIG.DEFAULT_USER_NAME);
   const [isAudioOnly, setIsAudioOnly] = useState(false);
@@ -31,13 +37,21 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: Math.max(insets.top, 12),
+          paddingBottom: Math.max(insets.bottom, 12),
+        },
+      ]}
+    >
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header Branding */}
         <View style={styles.header}>
           <Text style={styles.appIcon}>📡</Text>
-          <Text style={styles.appTitle}>Antigravity Meet</Text>
+          <Text style={styles.appTitle}>RNCalling Meet</Text>
           <Text style={styles.appSubtitle}>
             10+ Group Calls • Screen Share • Free WebRTC SFU
           </Text>
@@ -97,7 +111,9 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
           <TextInput
             style={styles.input}
             placeholder={
-              activeTab === 'group' ? 'e.g. standup-room-1' : 'e.g. john-calling-sarah'
+              activeTab === 'group'
+                ? 'e.g. standup-room-1'
+                : 'e.g. john-calling-sarah'
             }
             placeholderTextColor="#64748B"
             value={roomName}
@@ -112,7 +128,9 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
               onPress={() => setIsAudioOnly(!isAudioOnly)}
             >
               <Text style={styles.toggleText}>
-                {isAudioOnly ? '🔇 Joining as Audio Only' : '📹 Video & Audio Enabled'}
+                {isAudioOnly
+                  ? '🔇 Joining as Audio Only'
+                  : '📹 Video & Audio Enabled'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -134,21 +152,27 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
         </View>
 
         {/* Feature Highlights */}
-        <View style={styles.featuresCard}>
-          <Text style={styles.featuresHeading}>🚀 Architecture Capabilities</Text>
-          <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>10+ Simultaneous Users:</Text> Single SFU upload stream prevents mobile lag & battery drain.
+        {/* <View style={styles.featuresCard}>
+          <Text style={styles.featuresHeading}>
+            🚀 Architecture Capabilities
           </Text>
           <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>Android Screen Share:</Text> Native Android MediaProjection broadcast.
+            ✅ <Text style={styles.bold}>10+ Simultaneous Users:</Text> Single
+            SFU upload stream prevents mobile lag & battery drain.
           </Text>
           <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>Cellular & Wi-Fi Ready:</Text> Built-in global TURN traversal.
+            ✅ <Text style={styles.bold}>Android Screen Share:</Text> Native
+            Android MediaProjection broadcast.
           </Text>
           <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>In-Call Chat:</Text> Real-time data channel messaging.
+            ✅ <Text style={styles.bold}>Cellular & Wi-Fi Ready:</Text> Built-in
+            global TURN traversal.
           </Text>
-        </View>
+          <Text style={styles.featureItem}>
+            ✅ <Text style={styles.bold}>In-Call Chat:</Text> Real-time data
+            channel messaging.
+          </Text>
+        </View> */}
       </ScrollView>
     </View>
   );
@@ -301,4 +325,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

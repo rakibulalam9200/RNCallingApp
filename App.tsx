@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
 import { LobbyTemplate } from './src/components/templates/LobbyTemplate';
 import { CallRoomTemplate } from './src/components/templates/CallRoomTemplate';
 import { IncomingCallCard } from './src/components/molecules/IncomingCallCard';
@@ -9,8 +12,8 @@ import { useCallActions } from './src/hooks/useCallActions';
 
 function App() {
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <StatusBar barStyle="light-content" />
       <MainAppNavigator />
     </SafeAreaProvider>
   );
@@ -43,7 +46,7 @@ function MainAppNavigator() {
 
   return (
     <View style={styles.container}>
-      {status === 'idle' ? (
+      {status === 'idle' || status === 'connecting' ? (
         <LobbyTemplate
           onJoinRoom={(room, user, audioOnly) => {
             joinRoom(room, user, audioOnly);
