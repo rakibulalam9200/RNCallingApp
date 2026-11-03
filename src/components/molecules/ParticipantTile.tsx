@@ -5,14 +5,19 @@ import { MicroAvatar } from '../atoms/MicroAvatar';
 import { MicroTag } from '../atoms/MicroTag';
 import { MicroBadge } from '../atoms/MicroBadge';
 
-// Load native WebRTC view component
+// Load native LiveKit VideoTrack & WebRTC fallback view components
+let LiveKitVideoTrack: any = null;
 let RTCViewComponent: any = null;
+
+try {
+  const LiveKit = require('@livekit/react-native');
+  LiveKitVideoTrack = LiveKit.VideoTrack;
+} catch (e) {}
+
 try {
   const WebRTC = require('@livekit/react-native-webrtc');
   RTCViewComponent = WebRTC.RTCView;
-} catch (e) {
-  // Graceful fallback
-}
+} catch (e) {}
 
 interface ParticipantTileProps {
   participant: CallParticipant;
@@ -43,7 +48,9 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   zOrder,
 }) => {
   const streamURL = participant.isVideoEnabled ? getStreamURL(participant.videoTrack) : null;
-  const hasVideo = Boolean(participant.isVideoEnabled && streamURL);
+  const hasVideo = Boolean(
+    participant.isVideoEnabled && (participant.videoTrackRef || streamURL)
+  );
 
   return (
     <View
@@ -53,8 +60,16 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
         style,
       ]}
     >
-      {/* Video Stream or Avatar Fallback */}
-      {hasVideo && RTCViewComponent ? (
+      {/* Video Stream (LiveKit Adaptive VideoTrack or RTCView fallback) or Avatar Fallback */}
+      {hasVideo && participant.videoTrackRef && LiveKitVideoTrack ? (
+        <LiveKitVideoTrack
+          trackRef={participant.videoTrackRef}
+          style={styles.videoTrack}
+          mirror={participant.isLocal}
+          objectFit="cover"
+          zOrder={zOrder ?? (participant.isLocal ? 1 : 0)}
+        />
+      ) : hasVideo && streamURL && RTCViewComponent ? (
         <RTCViewComponent
           streamURL={streamURL}
           style={styles.videoTrack}

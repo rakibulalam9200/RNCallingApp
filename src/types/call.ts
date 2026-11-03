@@ -20,6 +20,30 @@ export interface CallParticipant {
   isScreenSharing: boolean;
   videoTrack?: any;
   screenShareTrack?: any;
+  videoTrackRef?: any;
+  screenShareTrackRef?: any;
+}
+
+export type SignalingPacketType =
+  | 'CHAT'
+  | 'FLOATING_REACTION'
+  | 'MESSAGE_REACTION'
+  | 'CALL_INVITE'
+  | 'CALL_ACCEPT'
+  | 'CALL_DECLINE'
+  | 'AI_TRANSCRIPT';
+
+export interface SignalingPacket {
+  type: SignalingPacketType;
+  id?: string;
+  sender: string;
+  text?: string;
+  emoji?: string;
+  targetMessageId?: string;
+  roomName?: string;
+  callType?: CallType;
+  isAudioOnly?: boolean;
+  timestamp: number;
 }
 
 export interface ChatMessage {

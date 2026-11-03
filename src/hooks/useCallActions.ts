@@ -3,17 +3,26 @@ import { useCallStore } from '../store/useCallStore';
 import { useChatStore } from '../store/useChatStore';
 import { useAIStore } from '../store/useAIStore';
 import { livekitService } from '../services/livekitService';
-import { LIVEKIT_CONFIG } from '../config/livekitConfig';
-import { ChatMessage, CallType } from '../types/call';
+import { LIVEKIT_CONFIG, loadRuntimeConfig } from '../config/livekitConfig';
+import { ChatMessage, CallType, SignalingPacket } from '../types/call';
 
 export const requestMediaPermissions = async () => {
   if (Platform.OS !== 'android') return true;
 
   try {
-    const granted = await PermissionsAndroid.requestMultiple([
+    const permissionsToRequest: any[] = [
       PermissionsAndroid.PERMISSIONS.CAMERA,
       PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-    ]);
+    ];
+
+    if (Number(Platform.Version) >= 31 && PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT) {
+      permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
+    }
+    if (Number(Platform.Version) >= 33 && PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
+      permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    }
+
+    const granted = await PermissionsAndroid.requestMultiple(permissionsToRequest);
 
     const cameraGranted =
       granted[PermissionsAndroid.PERMISSIONS.CAMERA] ===
@@ -55,6 +64,7 @@ export const useCallActions = () => {
 
   const {
     addMessage,
+    addMessageReaction,
     triggerFloatingReaction,
     clearMessages,
   } = useChatStore();
@@ -77,26 +87,36 @@ export const useCallActions = () => {
       setRoomDetails(targetRoom, user, type);
       clearMessages();
 
-      // Request Android Camera & Mic permissions before connecting
+      // Request Android Camera, Mic, Bluetooth & Notification permissions before connecting
       await requestMediaPermissions();
 
-      let token = 'sandbox_token';
+      const runtimeCfg = await loadRuntimeConfig();
+      let wsUrl = runtimeCfg.wsUrl || LIVEKIT_CONFIG.DEFAULT_WS_URL;
+      const tokenServerUrl =
+        runtimeCfg.tokenServerUrl || LIVEKIT_CONFIG.TOKEN_SERVER_URL;
+      let token = runtimeCfg.staticToken || 'sandbox_token';
 
       // Attempt to fetch real authorized LiveKit JWT token if token server configured
       if (
-        LIVEKIT_CONFIG.TOKEN_SERVER_URL &&
-        !LIVEKIT_CONFIG.TOKEN_SERVER_URL.includes('demo-calling-token-server')
+        token === 'sandbox_token' &&
+        tokenServerUrl &&
+        !tokenServerUrl.includes('demo-calling-token-server')
       ) {
         try {
           const res = await fetch(
-            `${LIVEKIT_CONFIG.TOKEN_SERVER_URL}/token?room=${encodeURIComponent(
+            `${tokenServerUrl.replace(/\/$/, '')}/token?room=${encodeURIComponent(
               targetRoom
-            )}&identity=${encodeURIComponent(user)}`
+            )}&identity=${encodeURIComponent(user)}&name=${encodeURIComponent(
+              user
+            )}`
           );
           if (res.ok) {
             const data = await res.json();
             if (data.token) {
               token = data.token;
+            }
+            if (data.wsUrl) {
+              wsUrl = data.wsUrl;
             }
           }
         } catch (fetchErr) {
@@ -104,8 +124,49 @@ export const useCallActions = () => {
         }
       }
 
+      const handlePacketReceived = (packet: SignalingPacket) => {
+        switch (packet.type) {
+          case 'FLOATING_REACTION':
+            if (packet.emoji) {
+              triggerFloatingReaction(packet.emoji, packet.sender);
+            }
+            break;
+          case 'MESSAGE_REACTION':
+            if (packet.targetMessageId && packet.emoji) {
+              addMessageReaction(
+                packet.targetMessageId,
+                packet.emoji,
+                packet.sender
+              );
+            }
+            break;
+          case 'AI_TRANSCRIPT':
+            if (packet.text) {
+              appendTranscript({
+                id: packet.id || `${Date.now()}`,
+                sender: packet.sender,
+                text: packet.text,
+                timestamp: packet.timestamp || Date.now(),
+                isAI: true,
+              });
+            }
+            break;
+          case 'CHAT':
+            if (packet.text) {
+              addMessage({
+                id: packet.id || `${Date.now()}`,
+                sender: packet.sender,
+                message: packet.text,
+                timestamp: packet.timestamp || Date.now(),
+                isLocal: false,
+              });
+            }
+            break;
+        }
+      };
+
       await livekitService.connect(
-        LIVEKIT_CONFIG.DEFAULT_WS_URL,
+        wsUrl,
         token,
         {
           onParticipantsChanged: (list) => {
@@ -117,8 +178,9 @@ export const useCallActions = () => {
           onScreenShareChanged: (sharer, track) => {
             setScreenSharer(sharer, track);
           },
+          onPacketReceived: handlePacketReceived,
           onChatMessageReceived: (msg) => {
-            // Check if it is a special packet (Reaction or AI)
+            // Backward compatibility for legacy string prefix packets
             if (msg.message.startsWith('__REACTION__:')) {
               const emoji = msg.message.replace('__REACTION__:', '');
               triggerFloatingReaction(emoji, msg.sender);
@@ -141,17 +203,12 @@ export const useCallActions = () => {
             resetCall();
           },
         },
-        type
+        type,
+        audioOnly
       );
 
-      if (audioOnly) {
-        setVideoEnabled(false);
-        await livekitService.setCameraEnabled(false);
-      } else {
-        setVideoEnabled(true);
-        await livekitService.setCameraEnabled(true);
-      }
-
+      setVideoEnabled(!audioOnly);
+      setSpeakerOn(!audioOnly);
       setStatus('connected');
     } catch (e) {
       console.error('Failed to join room', e);
@@ -199,24 +256,44 @@ export const useCallActions = () => {
     livekitService.setSpeakerphoneOn(nextState);
   };
 
-  // Send In-Call Message
+  // Send In-Call Message (Synchronized ID for cross-peer emoji reactions)
   const sendMessage = async (text: string) => {
+    const msgId = `msg_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const sender = userName || 'You';
     const localMsg: ChatMessage = {
-      id: `${Date.now()}_local`,
-      sender: userName || 'You',
+      id: msgId,
+      sender,
       message: text,
       timestamp: Date.now(),
       isLocal: true,
     };
     addMessage(localMsg);
-    await livekitService.sendChatMessage(text);
+    await livekitService.sendChatMessage(text, msgId, sender);
+  };
+
+  // Toggle Emoji Reaction on a specific chat message (Local + Broadcast to peers)
+  const toggleMessageReaction = async (messageId: string, emoji: string) => {
+    const sender = userName || 'You';
+    addMessageReaction(messageId, emoji, sender);
+    await livekitService.sendPacket({
+      type: 'MESSAGE_REACTION',
+      targetMessageId: messageId,
+      emoji,
+      sender,
+      timestamp: Date.now(),
+    });
   };
 
   // Send Emoji Reaction (Flying on screen + broadcast to peers)
   const sendReaction = async (emoji: string) => {
     const sender = userName || 'You';
     triggerFloatingReaction(emoji, sender);
-    await livekitService.sendChatMessage(`__REACTION__:${emoji}`);
+    await livekitService.sendPacket({
+      type: 'FLOATING_REACTION',
+      emoji,
+      sender,
+      timestamp: Date.now(),
+    });
   };
 
   // Toggle AI Assistant in Room
@@ -234,7 +311,9 @@ export const useCallActions = () => {
     flipCamera,
     toggleSpeaker,
     sendMessage,
+    toggleMessageReaction,
     sendReaction,
     toggleAI,
   };
 };
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,14 @@ import {
   StyleSheet,
   ScrollView,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MicroButton } from '../atoms/MicroButton';
-import { LIVEKIT_CONFIG } from '../../config/livekitConfig';
+import {
+  LIVEKIT_CONFIG,
+  loadRuntimeConfig,
+  saveRuntimeConfig,
+} from '../../config/livekitConfig';
 
 interface LobbyTemplateProps {
   onJoinRoom: (
@@ -19,11 +23,19 @@ interface LobbyTemplateProps {
     isAudioOnly: boolean,
     callType: 'group' | 'direct',
   ) => void;
+  onSimulateIncomingCall?: (callerName: string, roomName: string, isVideo: boolean) => void;
   isLoading?: boolean;
 }
 
+const QUICK_CONTACTS = [
+  { id: 'sarah', name: 'Sarah Jenkins', status: 'Online • Product Design', room: 'direct-sarah' },
+  { id: 'alex', name: 'Alex Rivera', status: 'Online • Mobile Eng', room: 'direct-alex' },
+  { id: 'elena', name: 'Elena Rostova', status: 'Available • AI Lead', room: 'direct-elena' },
+];
+
 export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
   onJoinRoom,
+  onSimulateIncomingCall,
   isLoading = false,
 }) => {
   const insets = useSafeAreaInsets();
@@ -31,6 +43,34 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
   const [userName, setUserName] = useState(LIVEKIT_CONFIG.DEFAULT_USER_NAME);
   const [isAudioOnly, setIsAudioOnly] = useState(false);
   const [activeTab, setActiveTab] = useState<'group' | 'direct'>('group');
+
+  // Runtime Server Settings Modal
+  const [showSettings, setShowSettings] = useState(false);
+  const [wsUrl, setWsUrl] = useState(LIVEKIT_CONFIG.DEFAULT_WS_URL);
+  const [tokenServerUrl, setTokenServerUrl] = useState(
+    LIVEKIT_CONFIG.TOKEN_SERVER_URL
+  );
+  const [staticToken, setStaticToken] = useState(
+    LIVEKIT_CONFIG.STATIC_DEV_TOKEN
+  );
+
+  useEffect(() => {
+    loadRuntimeConfig().then((cfg) => {
+      setWsUrl(cfg.wsUrl);
+      setTokenServerUrl(cfg.tokenServerUrl);
+      setStaticToken(cfg.staticToken);
+    });
+  }, []);
+
+  const handleSaveSettings = async () => {
+    await saveRuntimeConfig({ wsUrl, tokenServerUrl, staticToken });
+    setShowSettings(false);
+  };
+
+  const isLiveConfigured =
+    (!wsUrl.includes('demo-calling-app') &&
+      !tokenServerUrl.includes('demo-calling-token-server')) ||
+    Boolean(staticToken.trim());
 
   const handleJoin = () => {
     if (!roomName.trim() || !userName.trim()) return;
@@ -51,10 +91,29 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header Branding */}
         <View style={styles.header}>
+          <View style={styles.headerTopRow}>
+            <View style={styles.modeBadge}>
+              <View
+                style={[
+                  styles.modeDot,
+                  { backgroundColor: isLiveConfigured ? '#10B981' : '#F59E0B' },
+                ]}
+              />
+              <Text style={styles.modeText}>
+                {isLiveConfigured ? 'Live SFU Connected' : 'UI Demo Mode'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.settingsBtn}
+              onPress={() => setShowSettings(true)}
+            >
+              <Text style={styles.settingsBtnText}>⚙️ Server Setup</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.appIcon}>📡</Text>
           <Text style={styles.appTitle}>RNCalling Meet</Text>
           <Text style={styles.appSubtitle}>
-            10+ Group Calls • Screen Share • Free WebRTC SFU
+            10+ Group Calls • 1-on-1 HD • Chat & Emoji • Screen Share
           </Text>
         </View>
 
@@ -152,28 +211,125 @@ export const LobbyTemplate: React.FC<LobbyTemplateProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Feature Highlights */}
-        {/* <View style={styles.featuresCard}>
-          <Text style={styles.featuresHeading}>
-            🚀 Architecture Capabilities
-          </Text>
-          <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>10+ Simultaneous Users:</Text> Single
-            SFU upload stream prevents mobile lag & battery drain.
-          </Text>
-          <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>Android Screen Share:</Text> Native
-            Android MediaProjection broadcast.
-          </Text>
-          <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>Cellular & Wi-Fi Ready:</Text> Built-in
-            global TURN traversal.
-          </Text>
-          <Text style={styles.featureItem}>
-            ✅ <Text style={styles.bold}>In-Call Chat:</Text> Real-time data
-            channel messaging.
-          </Text>
-        </View> */}
+        {/* Quick 1-on-1 Contacts & Incoming Call Simulator */}
+        {activeTab === 'direct' && (
+          <View style={styles.contactsCard}>
+            <View style={styles.contactsHeaderRow}>
+              <Text style={styles.contactsTitle}>⚡ QUICK 1-ON-1 CONTACTS</Text>
+              {onSimulateIncomingCall && (
+                <TouchableOpacity
+                  style={styles.simIncomingBtn}
+                  onPress={() =>
+                    onSimulateIncomingCall('Sarah Jenkins', 'direct-sarah', true)
+                  }
+                >
+                  <Text style={styles.simIncomingText}>🔔 Test Incoming Ring</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {QUICK_CONTACTS.map((contact) => (
+              <View key={contact.id} style={styles.contactRow}>
+                <View style={styles.contactInfo}>
+                  <Text style={styles.contactName}>{contact.name}</Text>
+                  <Text style={styles.contactStatus}>{contact.status}</Text>
+                </View>
+                <View style={styles.contactActions}>
+                  <TouchableOpacity
+                    style={styles.audioCallMiniBtn}
+                    onPress={() =>
+                      onJoinRoom(
+                        contact.room,
+                        userName.trim() || 'You',
+                        true,
+                        'direct'
+                      )
+                    }
+                  >
+                    <Text style={styles.callMiniIcon}>📞</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.videoCallMiniBtn}
+                    onPress={() =>
+                      onJoinRoom(
+                        contact.room,
+                        userName.trim() || 'You',
+                        false,
+                        'direct'
+                      )
+                    }
+                  >
+                    <Text style={styles.callMiniIcon}>📹</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Server Configuration Modal (Allows configuring LiveKit in Release APK) */}
+        <Modal
+          visible={showSettings}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowSettings(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>⚙️ LiveKit SFU & Token Setup</Text>
+              <Text style={styles.modalSubtitle}>
+                Configure your LiveKit Cloud URL & Token Server (or paste a dev token) directly inside the Release APK.
+              </Text>
+
+              <Text style={styles.label}>LIVEKIT WEBSOCKET URL (WSS)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="wss://your-project.livekit.cloud"
+                placeholderTextColor="#64748B"
+                value={wsUrl}
+                onChangeText={setWsUrl}
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.label}>TOKEN SERVER URL (EXPRESS / FIREBASE)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="https://your-token-server.onrender.com"
+                placeholderTextColor="#64748B"
+                value={tokenServerUrl}
+                onChangeText={setTokenServerUrl}
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.label}>
+                STATIC JWT TOKEN (OPTIONAL OVERRIDE FOR QUICK TEST)
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Paste JWT token from cloud.livekit.io..."
+                placeholderTextColor="#64748B"
+                value={staticToken}
+                onChangeText={setStaticToken}
+                autoCapitalize="none"
+              />
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowSettings(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalSaveBtn}
+                  onPress={handleSaveSettings}
+                >
+                  <Text style={styles.modalSaveText}>Save Config</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </View>
   );
@@ -192,6 +348,185 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 24,
+    width: '100%',
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 14,
+  },
+  modeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  modeText: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  settingsBtn: {
+    backgroundColor: 'rgba(59, 130, 246, 0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+  },
+  settingsBtnText: {
+    color: '#93C5FD',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  contactsCard: {
+    width: '100%',
+    backgroundColor: '#1E293B',
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  contactsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  contactsTitle: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  simIncomingBtn: {
+    backgroundColor: 'rgba(16, 185, 129, 0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  simIncomingText: {
+    color: '#34D399',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  contactRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  contactStatus: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  contactActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  audioCallMiniBtn: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.4)',
+  },
+  videoCallMiniBtn: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  callMiniIcon: {
+    fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginBottom: 12,
+    lineHeight: 17,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+    gap: 10,
+  },
+  modalCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#334155',
+  },
+  modalCancelText: {
+    color: '#E2E8F0',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  modalSaveBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    backgroundColor: '#3B82F6',
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
   appIcon: {
     fontSize: 44,

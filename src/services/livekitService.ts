@@ -1,8 +1,14 @@
-import { CallParticipant, ChatMessage, CallType } from '../types/call';
+import {
+  CallParticipant,
+  ChatMessage,
+  CallType,
+  SignalingPacket,
+} from '../types/call';
 import { LIVEKIT_CONFIG } from '../config/livekitConfig';
 
 // Safely import native dependencies
 let LiveKitClient: any = null;
+let LiveKitRN: any = null;
 let InCallManager: any = null;
 
 try {
@@ -12,7 +18,15 @@ try {
 }
 
 try {
-  InCallManager = require('react-native-incall-manager').default || require('react-native-incall-manager');
+  LiveKitRN = require('@livekit/react-native');
+} catch (e) {
+  console.log('[LiveKitRN] Native module not yet linked.');
+}
+
+try {
+  InCallManager =
+    require('react-native-incall-manager').default ||
+    require('react-native-incall-manager');
 } catch (e) {
   console.log('[InCallManager] Native module not yet linked.');
 }
@@ -26,64 +40,115 @@ export class LiveKitService {
     callbacks: {
       onParticipantsChanged: (participants: CallParticipant[]) => void;
       onActiveSpeakerChanged: (speakerId?: string) => void;
-      onScreenShareChanged: (sharer?: CallParticipant, track?: any) => void;
+      onScreenShareChanged: (sharer?: CallParticipant, trackRef?: any) => void;
       onChatMessageReceived: (msg: ChatMessage) => void;
+      onPacketReceived?: (packet: SignalingPacket) => void;
       onDisconnected: () => void;
     },
-    callType: CallType = 'group'
+    callType: CallType = 'group',
+    audioOnly: boolean = false
   ) {
-    if (InCallManager) {
-      InCallManager.start({ media: 'video' });
-      InCallManager.setSpeakerphoneOn(true);
+    // 1. Start native LiveKit AudioSession & InCallManager for hardware echo cancellation & routing
+    try {
+      if (LiveKitRN?.AudioSession) {
+        await LiveKitRN.AudioSession.configureAudio({
+          android: {
+            preferredOutputList: audioOnly
+              ? ['bluetooth', 'headset', 'earpiece', 'speaker']
+              : ['bluetooth', 'headset', 'speaker', 'earpiece'],
+            audioTypeOptions: LiveKitRN.AndroidAudioTypePresets.communication,
+          },
+          ios: {
+            defaultOutput: audioOnly ? 'earpiece' : 'speaker',
+          },
+        });
+        await LiveKitRN.AudioSession.startAudioSession();
+      } else if (InCallManager) {
+        InCallManager.start({ media: audioOnly ? 'audio' : 'video' });
+        InCallManager.setSpeakerphoneOn(!audioOnly);
+      }
+    } catch (audioErr) {
+      console.warn('[AudioSession] Audio initialization warning:', audioErr);
     }
 
     if (
       !LiveKitClient ||
       !LiveKitClient.Room ||
       token === 'sandbox_token' ||
+      !token ||
       wsUrl.includes('demo-calling-app')
     ) {
       console.warn(
         '[LiveKitService] Running in UI simulation mode (live server credentials not configured).'
       );
-      return this.simulateConnection(callbacks, callType);
+      return this.simulateConnection(callbacks, callType, audioOnly);
     }
 
     try {
+      const videoPresets =
+        callType === 'direct'
+          ? LIVEKIT_CONFIG.DIRECT_CALL_VIDEO_PRESETS
+          : LIVEKIT_CONFIG.VIDEO_PRESETS;
+
       this.room = new LiveKitClient.Room({
         adaptiveStream: true,
         dynacast: true,
-        videoCaptureDefaults: LIVEKIT_CONFIG.VIDEO_PRESETS,
+        videoCaptureDefaults: {
+          resolution: videoPresets,
+          facingMode: 'user',
+        },
         publishDefaults: {
           simulcast: true,
+          videoSimulcastLayers: [
+            LiveKitClient.VideoPresets?.h180,
+            LiveKitClient.VideoPresets?.h360,
+          ].filter(Boolean),
           screenShareEncoding: LIVEKIT_CONFIG.SCREEN_SHARE_PRESETS,
         },
       });
 
-      const { RoomEvent } = LiveKitClient;
+      const { RoomEvent, Track } = LiveKitClient;
 
-      // Participant events
+      // Participant & Track events
       const updateParticipants = () => {
+        if (!this.room) return;
         const list: CallParticipant[] = [];
 
         // Local participant
         if (this.room.localParticipant) {
           const lp = this.room.localParticipant;
           const localVideoPub =
-            lp.getTrackPublication(LiveKitClient.Track.Source.Camera) ||
+            lp.getTrackPublication(Track.Source.Camera) ||
             lp.videoTrackPublications?.values()?.next()?.value;
+          const localScreenPub = lp.getTrackPublication(
+            Track.Source.ScreenShare
+          );
           const localTrack = localVideoPub?.track || localVideoPub?.videoTrack;
 
           list.push({
-            identity: lp.identity,
-            name: lp.name || lp.identity,
+            identity: lp.identity || 'local_user',
+            name: lp.name || lp.identity || 'You',
             isLocal: true,
-            isSpeaking: lp.isSpeaking,
+            isSpeaking: Boolean(lp.isSpeaking),
             isMuted: !lp.isMicrophoneEnabled,
-            isVideoEnabled: lp.isCameraEnabled,
-            isScreenSharing: lp.isScreenShareEnabled,
+            isVideoEnabled: Boolean(lp.isCameraEnabled),
+            isScreenSharing: Boolean(lp.isScreenShareEnabled),
             videoTrack: localTrack,
-            screenShareTrack: lp.getTrackPublication(LiveKitClient.Track.Source.ScreenShare)?.track,
+            screenShareTrack: localScreenPub?.track,
+            videoTrackRef: localVideoPub
+              ? {
+                  participant: lp,
+                  publication: localVideoPub,
+                  source: Track.Source.Camera,
+                }
+              : undefined,
+            screenShareTrackRef: localScreenPub
+              ? {
+                  participant: lp,
+                  publication: localScreenPub,
+                  source: Track.Source.ScreenShare,
+                }
+              : undefined,
           });
         }
 
@@ -91,20 +156,34 @@ export class LiveKitService {
         if (this.room.remoteParticipants) {
           this.room.remoteParticipants.forEach((rp: any) => {
             const videoPub =
-              rp.getTrackPublication(LiveKitClient.Track.Source.Camera) ||
-              Array.from(rp.videoTrackPublications.values())[0] as any;
-            const screenPub = rp.getTrackPublication(LiveKitClient.Track.Source.ScreenShare);
+              rp.getTrackPublication(Track.Source.Camera) ||
+              (Array.from(rp.videoTrackPublications?.values() || [])[0] as any);
+            const screenPub = rp.getTrackPublication(Track.Source.ScreenShare);
 
             list.push({
               identity: rp.identity,
               name: rp.name || rp.identity,
               isLocal: false,
-              isSpeaking: rp.isSpeaking,
+              isSpeaking: Boolean(rp.isSpeaking),
               isMuted: !rp.isMicrophoneEnabled,
-              isVideoEnabled: rp.isCameraEnabled,
-              isScreenSharing: rp.isScreenShareEnabled,
+              isVideoEnabled: Boolean(rp.isCameraEnabled),
+              isScreenSharing: Boolean(rp.isScreenShareEnabled),
               videoTrack: videoPub?.track || videoPub?.videoTrack,
               screenShareTrack: screenPub?.track,
+              videoTrackRef: videoPub
+                ? {
+                    participant: rp,
+                    publication: videoPub,
+                    source: Track.Source.Camera,
+                  }
+                : undefined,
+              screenShareTrackRef: screenPub
+                ? {
+                    participant: rp,
+                    publication: screenPub,
+                    source: Track.Source.ScreenShare,
+                  }
+                : undefined,
             });
           });
         }
@@ -115,7 +194,7 @@ export class LiveKitService {
         const screenSharer = list.find((p) => p.isScreenSharing);
         callbacks.onScreenShareChanged(
           screenSharer,
-          screenSharer?.screenShareTrack
+          screenSharer?.screenShareTrackRef || screenSharer?.screenShareTrack
         );
       };
 
@@ -124,8 +203,11 @@ export class LiveKitService {
         .on(RoomEvent.ParticipantDisconnected, updateParticipants)
         .on(RoomEvent.TrackSubscribed, updateParticipants)
         .on(RoomEvent.TrackUnsubscribed, updateParticipants)
+        .on(RoomEvent.TrackMuted, updateParticipants)
+        .on(RoomEvent.TrackUnmuted, updateParticipants)
         .on(RoomEvent.LocalTrackPublished, updateParticipants)
         .on(RoomEvent.LocalTrackUnpublished, updateParticipants)
+        .on(RoomEvent.ParticipantMetadataChanged, updateParticipants)
         .on(RoomEvent.ActiveSpeakersChanged, (speakers: any[]) => {
           updateParticipants();
           if (speakers && speakers.length > 0) {
@@ -138,27 +220,43 @@ export class LiveKitService {
           try {
             const text = new TextDecoder().decode(payload);
             const data = JSON.parse(text);
-            callbacks.onChatMessageReceived({
-              id: `${Date.now()}_${Math.random()}`,
-              sender: participant?.name || participant?.identity || 'Peer',
-              message: data.text,
-              timestamp: Date.now(),
-              isLocal: false,
-            });
+            const senderName =
+              data.sender ||
+              participant?.name ||
+              participant?.identity ||
+              'Peer';
+
+            if (data.type && callbacks.onPacketReceived) {
+              callbacks.onPacketReceived({
+                ...data,
+                sender: senderName,
+              });
+              return;
+            }
+
+            if (data.text) {
+              callbacks.onChatMessageReceived({
+                id: data.id || `${Date.now()}_${Math.random()}`,
+                sender: senderName,
+                message: data.text,
+                timestamp: data.timestamp || Date.now(),
+                isLocal: false,
+              });
+            }
           } catch (e) {
             console.error('Failed to parse data message', e);
           }
         })
         .on(RoomEvent.Disconnected, () => {
-          if (InCallManager) InCallManager.stop();
+          this.stopAudioSession();
           callbacks.onDisconnected();
         });
 
       await this.room.connect(wsUrl, token);
 
-      // Enable local microphone and camera by default
+      // Enable local microphone and camera according to pre-call choice
       await this.room.localParticipant.setMicrophoneEnabled(true);
-      await this.room.localParticipant.setCameraEnabled(true);
+      await this.room.localParticipant.setCameraEnabled(!audioOnly);
 
       updateParticipants();
     } catch (error) {
@@ -187,11 +285,16 @@ export class LiveKitService {
 
   public async flipCamera() {
     if (this.room?.localParticipant) {
-      const videoTrack = this.room.localParticipant.getTrackPublication(
+      const videoPub = this.room.localParticipant.getTrackPublication(
         LiveKitClient?.Track?.Source?.Camera
-      )?.videoTrack;
-      if (videoTrack?.restart) {
-        // Toggle facing mode
+      );
+      const videoTrack = videoPub?.videoTrack || videoPub?.track;
+      if (videoTrack?.restartTrack) {
+        const currentFacing = videoTrack.options?.facingMode || 'user';
+        await videoTrack.restartTrack({
+          facingMode: currentFacing === 'user' ? 'environment' : 'user',
+        });
+      } else if (videoTrack?.restart) {
         await videoTrack.restart({
           facingMode: videoTrack.facingMode === 'user' ? 'environment' : 'user',
         });
@@ -199,15 +302,24 @@ export class LiveKitService {
     }
   }
 
-  public setSpeakerphoneOn(on: boolean) {
-    if (InCallManager) {
-      InCallManager.setSpeakerphoneOn(on);
+  public async setSpeakerphoneOn(on: boolean) {
+    try {
+      if (LiveKitRN?.AudioSession) {
+        await LiveKitRN.AudioSession.selectAudioOutput(
+          on ? 'speaker' : 'earpiece'
+        );
+      }
+      if (InCallManager) {
+        InCallManager.setSpeakerphoneOn(on);
+      }
+    } catch (e) {
+      console.warn('[Audio] Failed to switch speaker output', e);
     }
   }
 
-  public async sendChatMessage(text: string) {
+  public async sendPacket(packet: SignalingPacket) {
     if (this.room?.localParticipant) {
-      const payload = JSON.stringify({ text });
+      const payload = JSON.stringify(packet);
       const encoded = new TextEncoder().encode(payload);
       await this.room.localParticipant.publishData(encoded, {
         reliable: true,
@@ -215,8 +327,29 @@ export class LiveKitService {
     }
   }
 
+  public async sendChatMessage(text: string, id?: string, sender?: string) {
+    await this.sendPacket({
+      type: 'CHAT',
+      id: id || `${Date.now()}_${Math.random()}`,
+      sender: sender || 'Peer',
+      text,
+      timestamp: Date.now(),
+    });
+  }
+
+  private stopAudioSession() {
+    try {
+      if (LiveKitRN?.AudioSession) {
+        LiveKitRN.AudioSession.stopAudioSession();
+      }
+      if (InCallManager) {
+        InCallManager.stop();
+      }
+    } catch {}
+  }
+
   public disconnect() {
-    if (InCallManager) InCallManager.stop();
+    this.stopAudioSession();
     if (this.room) {
       this.room.disconnect();
       this.room = null;
@@ -224,7 +357,11 @@ export class LiveKitService {
   }
 
   // Simulated fallback for immediate UI testing before credentials are added
-  private simulateConnection(callbacks: any, callType: CallType = 'group') {
+  private simulateConnection(
+    callbacks: any,
+    callType: CallType = 'group',
+    audioOnly: boolean = false
+  ) {
     const mockList: CallParticipant[] =
       callType === 'direct'
         ? [
@@ -234,7 +371,7 @@ export class LiveKitService {
               isLocal: true,
               isSpeaking: false,
               isMuted: false,
-              isVideoEnabled: true,
+              isVideoEnabled: !audioOnly,
               isScreenSharing: false,
             },
             {
@@ -254,7 +391,7 @@ export class LiveKitService {
               isLocal: true,
               isSpeaking: false,
               isMuted: false,
-              isVideoEnabled: true,
+              isVideoEnabled: !audioOnly,
               isScreenSharing: false,
             },
             {
@@ -285,4 +422,5 @@ export class LiveKitService {
 }
 
 export const livekitService = new LiveKitService();
+
 

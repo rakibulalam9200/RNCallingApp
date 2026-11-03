@@ -52,6 +52,7 @@ export const CallRoomTemplate: React.FC = () => {
     flipCamera,
     toggleSpeaker,
     sendMessage,
+    toggleMessageReaction,
     sendReaction,
     leaveRoom,
   } = useCallActions();
@@ -169,6 +170,7 @@ export const CallRoomTemplate: React.FC = () => {
         visible={isChatOpen}
         messages={messages}
         onSendMessage={sendMessage}
+        onReactMessage={toggleMessageReaction}
         onClose={() => setChatOpen(false)}
       />
     </View>

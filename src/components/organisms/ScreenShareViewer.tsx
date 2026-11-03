@@ -4,9 +4,16 @@ import { CallParticipant } from '../../types/call';
 import { MicroBadge } from '../atoms/MicroBadge';
 
 let VideoTrackView: any = null;
+let RTCViewComponent: any = null;
+
 try {
   const LiveKit = require('@livekit/react-native');
   VideoTrackView = LiveKit.VideoTrack;
+} catch (e) {}
+
+try {
+  const WebRTC = require('@livekit/react-native-webrtc');
+  RTCViewComponent = WebRTC.RTCView;
 } catch (e) {}
 
 interface ScreenShareViewerProps {
@@ -18,6 +25,13 @@ export const ScreenShareViewer: React.FC<ScreenShareViewerProps> = ({
   sharer,
   track,
 }) => {
+  const trackRef = track?.publication ? track : sharer.screenShareTrackRef;
+  const rawTrack = track?.publication ? track.publication.track : track || sharer.screenShareTrack;
+  const streamURL =
+    rawTrack?.mediaStream && typeof rawTrack.mediaStream.toURL === 'function'
+      ? rawTrack.mediaStream.toURL()
+      : null;
+
   return (
     <View style={styles.container}>
       {/* Top Banner */}
@@ -29,9 +43,15 @@ export const ScreenShareViewer: React.FC<ScreenShareViewerProps> = ({
       </View>
 
       {/* Screen Video Stream */}
-      {track && VideoTrackView ? (
+      {trackRef && VideoTrackView ? (
         <VideoTrackView
-          trackRef={track}
+          trackRef={trackRef}
+          style={styles.screenTrack}
+          objectFit="contain"
+        />
+      ) : streamURL && RTCViewComponent ? (
+        <RTCViewComponent
+          streamURL={streamURL}
           style={styles.screenTrack}
           objectFit="contain"
         />

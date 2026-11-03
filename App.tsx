@@ -23,21 +23,23 @@ function MainAppNavigator() {
   const status = useCallStore((s) => s.status);
   const { joinRoom } = useCallActions();
 
-  // Simulated incoming 1-on-1 call modal state
+  // Incoming 1-on-1 call modal state (Triggered by FCM / Signaling or Test Ring button)
   const [incomingCall, setIncomingCall] = useState<{
     visible: boolean;
     callerName: string;
     roomName: string;
+    isVideoCall: boolean;
   }>({
     visible: false,
     callerName: 'Sarah Jenkins',
-    roomName: 'sarah-calling-you',
+    roomName: 'direct-sarah',
+    isVideoCall: true,
   });
 
   const handleAcceptIncomingCall = () => {
-    const { roomName: targetRoom } = incomingCall;
+    const { roomName: targetRoom, isVideoCall } = incomingCall;
     setIncomingCall((prev) => ({ ...prev, visible: false }));
-    joinRoom(targetRoom, 'You', false, 'direct');
+    joinRoom(targetRoom, 'You', !isVideoCall, 'direct');
   };
 
   const handleDeclineIncomingCall = () => {
@@ -51,6 +53,14 @@ function MainAppNavigator() {
           onJoinRoom={(room, user, audioOnly, callType) => {
             joinRoom(room, user, audioOnly, callType);
           }}
+          onSimulateIncomingCall={(callerName, roomName, isVideoCall) => {
+            setIncomingCall({
+              visible: true,
+              callerName,
+              roomName,
+              isVideoCall,
+            });
+          }}
           isLoading={status === 'connecting'}
         />
       ) : (
@@ -62,6 +72,7 @@ function MainAppNavigator() {
         visible={incomingCall.visible}
         callerName={incomingCall.callerName}
         roomName={incomingCall.roomName}
+        isVideoCall={incomingCall.isVideoCall}
         onAccept={handleAcceptIncomingCall}
         onDecline={handleDeclineIncomingCall}
       />

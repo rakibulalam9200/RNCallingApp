@@ -17,13 +17,17 @@ interface ChatDrawerProps {
   visible: boolean;
   messages: ChatMessage[];
   onSendMessage: (text: string) => void;
+  onReactMessage?: (messageId: string, emoji: string) => void;
   onClose: () => void;
 }
+
+const CHAT_QUICK_EMOJIS = ['👋', '❤️', '👍', '🔥', '🎉', '😂', '👏', '🙏'];
 
 export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   visible,
   messages,
   onSendMessage,
+  onReactMessage,
   onClose,
 }) => {
   const insets = useSafeAreaInsets();
@@ -69,7 +73,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             <Text style={styles.emptyIcon}>💬</Text>
             <Text style={styles.emptyText}>No messages yet.</Text>
             <Text style={styles.emptySubtext}>
-              Messages sent here are visible to everyone in the call.
+              Messages & emoji reactions sent here are visible to everyone in the call. Tap any message to react!
             </Text>
           </View>
         ) : (
@@ -77,10 +81,28 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             ref={flatListRef}
             data={messages}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <ChatMessageBubble message={item} />}
+            renderItem={({ item }) => (
+              <ChatMessageBubble
+                message={item}
+                onReact={onReactMessage}
+              />
+            )}
             contentContainerStyle={styles.listContent}
           />
         )}
+
+        {/* Quick Emoji Insert Strip */}
+        <View style={styles.quickEmojiRow}>
+          {CHAT_QUICK_EMOJIS.map((emoji) => (
+            <TouchableOpacity
+              key={emoji}
+              style={styles.quickEmojiBtn}
+              onPress={() => setInputText((prev) => `${prev}${emoji}`)}
+            >
+              <Text style={styles.quickEmojiText}>{emoji}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* Input Bar */}
         <View
@@ -178,6 +200,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
+  },
+  quickEmojiRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#1E293B',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  quickEmojiBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  quickEmojiText: {
+    fontSize: 18,
   },
   inputBar: {
     flexDirection: 'row',

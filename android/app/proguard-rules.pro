@@ -11,6 +11,12 @@
 -keep class org.webrtc.** { *; }
 -dontwarn org.webrtc.**
 
+-keep class livekit.org.webrtc.** { *; }
+-dontwarn livekit.org.webrtc.**
+
+-keep class com.oney.WebRTCModule.** { *; }
+-dontwarn com.oney.WebRTCModule.**
+
 -keep class io.livekit.** { *; }
 -dontwarn io.livekit.**
 
@@ -19,6 +25,9 @@
 
 -keep class com.zmxv.RNSound.** { *; }
 -dontwarn com.zmxv.RNSound.**
+
+-keep class com.twiliorn.library.** { *; }
+-dontwarn com.twiliorn.library.**
 
 -keepattributes InnerClasses
 -keepattributes *Annotation*
